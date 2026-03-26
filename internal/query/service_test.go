@@ -165,7 +165,7 @@ func TestServiceUsesBroadQueryBackendWhenAvailable(t *testing.T) {
 }
 
 func TestServiceStatsIncludesExtendedSummaries(t *testing.T) {
-	store := &fakeStore{records: []model.Record{
+	store := &fakeStore{queryRecords: []model.Record{
 		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true, GenomeID: "R1", CheckM2Completeness: 99, CheckM2Contamination: 1},
 		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: false, CheckM2Completeness: 85, CheckM2Contamination: 6},
 		{SampleID: "S3", Species: "Salmonella enterica", Genus: "Salmonella", ASMFASTAOnOSF: 1, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.2, Country: "UK"},
@@ -190,6 +190,55 @@ func TestServiceStatsIncludesExtendedSummaries(t *testing.T) {
 	}
 	if len(stats.FieldCoverage) == 0 {
 		t.Fatalf("expected field coverage stats")
+	}
+	if store.queryCalls != 1 {
+		t.Fatalf("expected stats to use QueryRecords, got %d calls", store.queryCalls)
+	}
+	if store.recordsCalls != 0 {
+		t.Fatalf("expected stats not to call full Records, got %d calls", store.recordsCalls)
+	}
+}
+
+func TestServiceStatsDoesNotFallBackToFullRecords(t *testing.T) {
+	fs := &fakeStore{
+		records:         []model.Record{{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true}},
+		queryRecordsErr: store.ErrQueryUnsupported,
+	}
+	svc := Service{Store: fs}
+
+	_, err := svc.Stats(context.Background(), model.Query{Species: "Escherichia coli"})
+	if err == nil {
+		t.Fatalf("expected stats error when broad query cache cannot answer request")
+	}
+	if fs.recordsCalls != 0 {
+		t.Fatalf("expected stats not to fall back to Records, got %d calls", fs.recordsCalls)
+	}
+	if fs.queryCalls != 1 {
+		t.Fatalf("expected one QueryRecords call, got %d", fs.queryCalls)
+	}
+}
+
+func TestServiceStatsAllowsExactIDLookupWithoutBroadQueryCache(t *testing.T) {
+	fs := &fakeStore{
+		recordByID: map[string]model.Record{
+			"S1": {SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true},
+		},
+		queryRecordsErr: store.ErrQueryUnsupported,
+	}
+	svc := Service{Store: fs}
+
+	stats, err := svc.Stats(context.Background(), model.Query{SampleID: "S1"})
+	if err != nil {
+		t.Fatalf("Stats returned error: %v", err)
+	}
+	if stats.Total != 1 {
+		t.Fatalf("expected exact-ID stats result, got %#v", stats)
+	}
+	if fs.recordByIDCalls != 1 {
+		t.Fatalf("expected RecordByID lookup, got %d calls", fs.recordByIDCalls)
+	}
+	if fs.recordsCalls != 0 {
+		t.Fatalf("expected no full Records load, got %d calls", fs.recordsCalls)
 	}
 }
 

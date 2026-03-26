@@ -56,7 +56,7 @@ func (s Service) Info(ctx context.Context, id string, includeENA bool) (map[stri
 }
 
 func (s Service) Stats(ctx context.Context, q model.Query) (model.Stats, error) {
-	records, err := s.filterRecords(ctx, q)
+	records, err := s.statsRecords(ctx, q)
 	if err != nil {
 		return model.Stats{}, err
 	}
@@ -83,6 +83,32 @@ func (s Service) Stats(ctx context.Context, q model.Query) (model.Stats, error) 
 	stats.TopSpecies = topNamedCounts(stats.PerSpecies, 10)
 	stats.FieldCoverage = fieldCoverage(records)
 	return stats, nil
+}
+
+func (s Service) statsRecords(ctx context.Context, q model.Query) ([]model.Record, error) {
+	if q.SampleID != "" || q.GenomeID != "" {
+		return s.filterRecords(ctx, q)
+	}
+	type broadQuerier interface {
+		QueryRecords(context.Context, model.Query) ([]model.Record, error)
+	}
+	qs, ok := s.Store.(broadQuerier)
+	if !ok {
+		return nil, fmt.Errorf("stats requires the local SQLite query cache and will not scan ENA-backed metadata; run `atb fetch --metadata`")
+	}
+	records, err := qs.QueryRecords(ctx, q)
+	if err != nil {
+		if errors.Is(err, store.ErrQueryUnsupported) {
+			return nil, fmt.Errorf("stats does not support these filters from the local SQLite query cache and will not scan ENA-backed metadata")
+		}
+		return nil, err
+	}
+	if q.SampleStrategy == "even" {
+		records = evenSample(records, q.Limit, q.Seed)
+	} else if q.Limit > 0 && len(records) > q.Limit {
+		records = records[:q.Limit]
+	}
+	return records, nil
 }
 
 func topNamedCounts(items map[string]int, limit int) []model.NamedCount {
