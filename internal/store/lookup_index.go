@@ -293,6 +293,100 @@ func lookupRowByID(ctx context.Context, layout cache.Layout, id string) (*lookup
 	return &row, nil
 }
 
+func queryLookupRows(ctx context.Context, layout cache.Layout, q model.Query) ([]lookupRow, error) {
+	if q.SequenceType != nil {
+		return nil, ErrQueryUnsupported
+	}
+	if err := ensureLookupIndex(layout); err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", layout.LookupDB)
+	if err != nil {
+		return nil, fmt.Errorf("open lookup index: %w", err)
+	}
+	defer db.Close()
+
+	where, args := lookupQueryWhere(q)
+	rows, err := db.QueryContext(ctx, selectLookupBaseSQL+where+" ORDER BY species, sample_id", args...)
+	if err != nil {
+		return nil, fmt.Errorf("query lookup index: %w", err)
+	}
+	defer rows.Close()
+
+	var out []lookupRow
+	for rows.Next() {
+		var row lookupRow
+		if err := rows.Scan(
+			&row.SampleID,
+			&row.RunAccession,
+			&row.AssemblyAccession,
+			&row.AssemblySeqkitSum,
+			&row.ASMPipeFilter,
+			&row.ASMFASTAOnOSF,
+			&row.Dataset,
+			&row.Species,
+			&row.ScientificName,
+			&row.SylphSpecies,
+			&row.SylphSpeciesPre202505,
+			&row.SylphFilter,
+			&row.HQFilter,
+			&row.InHQPre202505,
+			&row.HQ,
+			&row.OSFTarballFilename,
+			&row.OSFTarballURL,
+			&row.AWSURL,
+			&row.Comments,
+			&row.MetadataVersion,
+			&row.CheckM2Completeness,
+			&row.CheckM2Contamination,
+			&row.AssemblyStatsTotal,
+			&row.AssemblyStatsNumber,
+			&row.AssemblyStatsMeanLength,
+			&row.AssemblyStatsLongest,
+			&row.AssemblyStatsShortest,
+			&row.AssemblyStatsNCount,
+			&row.AssemblyStatsGaps,
+			&row.AssemblyStatsN50,
+			&row.AssemblyStatsN50n,
+			&row.AssemblyStatsN70,
+			&row.AssemblyStatsN70n,
+			&row.AssemblyStatsN90,
+			&row.AssemblyStatsN90n,
+		); err != nil {
+			return nil, fmt.Errorf("scan lookup row: %w", err)
+		}
+		out = append(out, row)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate lookup rows: %w", err)
+	}
+	return out, nil
+}
+
+func lookupQueryWhere(q model.Query) (string, []any) {
+	var clauses []string
+	var args []any
+	if q.Species != "" {
+		clauses = append(clauses, "lower(species) = lower(?)")
+		args = append(args, q.Species)
+	}
+	if q.HQOnly {
+		clauses = append(clauses, "hq = 1")
+	}
+	if q.CheckM2Min != nil {
+		clauses = append(clauses, "checkm2_completeness >= ?")
+		args = append(args, *q.CheckM2Min)
+	}
+	if q.CheckM2MaxContamination != nil {
+		clauses = append(clauses, "checkm2_contamination <= ?")
+		args = append(args, *q.CheckM2MaxContamination)
+	}
+	if len(clauses) == 0 {
+		return "", args
+	}
+	return " WHERE " + strings.Join(clauses, " AND "), args
+}
+
 func (r lookupRow) toRecord() model.Record {
 	record := model.Record{
 		SampleID:        r.SampleID,
@@ -474,4 +568,14 @@ SELECT
 FROM lookup_sample
 WHERE sample_id = ? OR run_accession = ? OR assembly_accession = ?
 LIMIT 1
+`
+
+const selectLookupBaseSQL = `
+SELECT
+  sample_id, run_accession, assembly_accession, assembly_seqkit_sum, asm_pipe_filter,
+  asm_fasta_on_osf, dataset, species, scientific_name, sylph_species, sylph_species_pre_202505,
+  sylph_filter, hq_filter, in_hq_pre_202505, hq, osf_tarball_filename, osf_tarball_url, aws_url,
+  comments, metadata_version, checkm2_completeness, checkm2_contamination, total_length, number,
+  mean_length, longest, shortest, n_count, gaps, n50, n50n, n70, n70n, n90, n90n
+FROM lookup_sample
 `

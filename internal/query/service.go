@@ -2,6 +2,7 @@ package query
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -97,6 +98,23 @@ func (s Service) filterRecords(ctx context.Context, q model.Query) ([]model.Reco
 			return nil, err
 		}
 		return nil, nil
+	}
+	type broadQuerier interface {
+		QueryRecords(context.Context, model.Query) ([]model.Record, error)
+	}
+	if qs, ok := s.Store.(broadQuerier); ok {
+		records, err := qs.QueryRecords(ctx, q)
+		if err == nil {
+			if q.SampleStrategy == "even" {
+				records = evenSample(records, q.Limit, q.Seed)
+			} else if q.Limit > 0 && len(records) > q.Limit {
+				records = records[:q.Limit]
+			}
+			return records, nil
+		}
+		if !errors.Is(err, store.ErrQueryUnsupported) {
+			return nil, err
+		}
 	}
 	records, err := s.Store.Records(ctx)
 	if err != nil {

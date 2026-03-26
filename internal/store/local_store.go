@@ -19,6 +19,7 @@ import (
 )
 
 var ErrCacheNotFetched = errors.New("local ATB cache is missing required data")
+var ErrQueryUnsupported = errors.New("query backend does not support this filter set")
 
 type Store interface {
 	Records(context.Context) ([]model.Record, error)
@@ -31,6 +32,21 @@ type Store interface {
 
 type LocalStore struct {
 	Layout cache.Layout
+}
+
+func (s LocalStore) QueryRecords(ctx context.Context, q model.Query) ([]model.Record, error) {
+	rows, err := queryLookupRows(ctx, s.Layout, q)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrQueryUnsupported
+		}
+		return nil, wrapCacheErr("metadata query cache", err)
+	}
+	records := make([]model.Record, 0, len(rows))
+	for _, row := range rows {
+		records = append(records, row.toRecord())
+	}
+	return records, nil
 }
 
 func (s LocalStore) Records(_ context.Context) ([]model.Record, error) {

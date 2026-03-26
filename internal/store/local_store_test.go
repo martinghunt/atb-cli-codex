@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/martin/atb-cli-codex/internal/cache"
+	"github.com/martin/atb-cli-codex/internal/model"
 	"github.com/parquet-go/parquet-go"
 )
 
@@ -180,6 +181,40 @@ func TestLocalStoreRecordByIDUsesAssemblyMetadataFirst(t *testing.T) {
 	}
 	if record.CheckM2Completeness != 99.5 {
 		t.Fatalf("expected CheckM2 enrichment: %#v", record)
+	}
+	if _, err := os.Stat(layout.LookupDB); err != nil {
+		t.Fatalf("expected lookup DB to be created, got %v", err)
+	}
+}
+
+func TestLocalStoreQueryRecordsUsesSQLiteQueryCache(t *testing.T) {
+	layout := cache.NewLayout(t.TempDir())
+	if err := layout.Ensure(); err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	writeParquet(t, filepath.Join(layout.Metadata, "assembly.parquet"), []assemblyInfoRow{
+		{SampleAccession: "S1", RunAccession: "R1", ScientificName: "Escherichia coli", HQFilter: "pass"},
+		{SampleAccession: "S2", RunAccession: "R2", ScientificName: "Escherichia coli"},
+		{SampleAccession: "S3", RunAccession: "R3", ScientificName: "Salmonella enterica"},
+	})
+	writeParquet(t, filepath.Join(layout.Metadata, "checkm2.parquet"), []checkFixtureRow{
+		{SampleAccession: "S1", Completeness: 99, Contamination: 1},
+		{SampleAccession: "S2", Completeness: 85, Contamination: 6},
+		{SampleAccession: "S3", Completeness: 97, Contamination: 0.2},
+	})
+
+	records, err := (LocalStore{Layout: layout}).QueryRecords(context.Background(), model.Query{
+		Species: "Escherichia coli",
+		HQOnly:  true,
+	})
+	if err != nil {
+		t.Fatalf("QueryRecords: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %#v", records)
+	}
+	if records[0].SampleID != "S1" || !records[0].HQ {
+		t.Fatalf("unexpected records: %#v", records)
 	}
 	if _, err := os.Stat(layout.LookupDB); err != nil {
 		t.Fatalf("expected lookup DB to be created, got %v", err)

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/martin/atb-cli-codex/internal/model"
+	"github.com/martin/atb-cli-codex/internal/store"
 )
 
 type fakeStore struct {
@@ -14,6 +15,9 @@ type fakeStore struct {
 	recordByID      map[string]model.Record
 	recordByIDCalls int
 	recordsCalls    int
+	queryRecords    []model.Record
+	queryRecordsErr error
+	queryCalls      int
 }
 
 func (f *fakeStore) Records(context.Context) ([]model.Record, error) {
@@ -35,6 +39,16 @@ func (f *fakeStore) RecordByID(_ context.Context, id string) (model.Record, erro
 }
 func (f *fakeStore) AMRByGenus(_ context.Context, genus string) ([]model.AMRHit, error) {
 	return f.amrByGenus[genus], nil
+}
+func (f *fakeStore) QueryRecords(context.Context, model.Query) ([]model.Record, error) {
+	f.queryCalls++
+	if f.queryRecordsErr != nil {
+		return nil, f.queryRecordsErr
+	}
+	if f.queryRecords != nil {
+		return f.queryRecords, nil
+	}
+	return nil, store.ErrQueryUnsupported
 }
 
 func TestServiceFiltersAndSampling(t *testing.T) {
@@ -121,6 +135,29 @@ func TestServiceUsesTargetedLookupForExactSampleQuery(t *testing.T) {
 	}
 	if store.recordByIDCalls != 1 {
 		t.Fatalf("expected targeted RecordByID lookup, got %d calls", store.recordByIDCalls)
+	}
+	if store.recordsCalls != 0 {
+		t.Fatalf("expected no full Records load, got %d calls", store.recordsCalls)
+	}
+}
+
+func TestServiceUsesBroadQueryBackendWhenAvailable(t *testing.T) {
+	store := &fakeStore{
+		queryRecords: []model.Record{
+			{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true},
+		},
+	}
+	svc := Service{Store: store}
+
+	rows, err := svc.Run(context.Background(), model.Query{Species: "Escherichia coli"})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if len(rows) != 1 || rows[0]["sample_id"] != "S1" {
+		t.Fatalf("unexpected rows: %#v", rows)
+	}
+	if store.queryCalls != 1 {
+		t.Fatalf("expected QueryRecords call, got %d", store.queryCalls)
 	}
 	if store.recordsCalls != 0 {
 		t.Fatalf("expected no full Records load, got %d calls", store.recordsCalls)
