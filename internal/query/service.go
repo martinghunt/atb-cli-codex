@@ -60,11 +60,87 @@ func (s Service) Stats(ctx context.Context, q model.Query) (model.Stats, error) 
 	if err != nil {
 		return model.Stats{}, err
 	}
-	stats := model.Stats{Total: len(records), PerSpecies: map[string]int{}}
+	stats := model.Stats{
+		Total:      len(records),
+		PerSpecies: map[string]int{},
+		PerGenus:   map[string]int{},
+	}
 	for _, rec := range records {
 		stats.PerSpecies[rec.Species]++
+		stats.PerGenus[rec.Genus]++
+		if rec.HQ {
+			stats.HQ++
+		} else {
+			stats.NonHQ++
+		}
+		if rec.CheckM2Completeness >= 90 {
+			stats.CheckM2CompletenessGE90++
+		}
+		if rec.CheckM2Contamination > 0 && rec.CheckM2Contamination <= 5 {
+			stats.CheckM2ContaminationLE5++
+		}
 	}
+	stats.TopSpecies = topNamedCounts(stats.PerSpecies, 10)
+	stats.FieldCoverage = fieldCoverage(records)
 	return stats, nil
+}
+
+func topNamedCounts(items map[string]int, limit int) []model.NamedCount {
+	out := make([]model.NamedCount, 0, len(items))
+	for name, count := range items {
+		out = append(out, model.NamedCount{Name: name, Count: count})
+	}
+	slices.SortFunc(out, func(a, b model.NamedCount) int {
+		if a.Count != b.Count {
+			if a.Count > b.Count {
+				return -1
+			}
+			return 1
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+func fieldCoverage(records []model.Record) []model.FieldCoverage {
+	type fieldCheck struct {
+		name    string
+		present func(model.Record) bool
+	}
+	fields := []fieldCheck{
+		{name: "species", present: func(r model.Record) bool { return strings.TrimSpace(r.Species) != "" }},
+		{name: "genus", present: func(r model.Record) bool { return strings.TrimSpace(r.Genus) != "" }},
+		{name: "genome_id", present: func(r model.Record) bool { return strings.TrimSpace(r.GenomeID) != "" }},
+		{name: "checkm2_completeness", present: func(r model.Record) bool { return r.CheckM2Completeness > 0 }},
+		{name: "checkm2_contamination", present: func(r model.Record) bool { return r.CheckM2Contamination > 0 }},
+		{name: "country", present: func(r model.Record) bool { return strings.TrimSpace(r.Country) != "" }},
+		{name: "collection_year", present: func(r model.Record) bool { return r.CollectionYear > 0 }},
+		{name: "sequence_type", present: func(r model.Record) bool { return r.SequenceType > 0 }},
+	}
+	out := make([]model.FieldCoverage, 0, len(fields))
+	total := len(records)
+	for _, field := range fields {
+		present := 0
+		for _, rec := range records {
+			if field.present(rec) {
+				present++
+			}
+		}
+		percentage := 0
+		if total > 0 {
+			percentage = int(float64(present) * 100 / float64(total))
+		}
+		out = append(out, model.FieldCoverage{
+			Field:      field.name,
+			Present:    present,
+			Total:      total,
+			Percentage: percentage,
+		})
+	}
+	return out
 }
 
 func Validate(q model.Query) error {

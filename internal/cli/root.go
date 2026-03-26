@@ -246,7 +246,7 @@ func newInfoCommand(ctx context.Context, opts *rootOptions) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&id, "sample", "", "Sample or genome identifier to inspect.")
 	cmd.Flags().BoolVar(&includeENA, "include-ena", false, "Also scan ENA parquet metadata for extra fields like country. This is slower and should only be used when you want ENA-derived fields.")
-	cmd.Flags().StringVar(&format, "format", "table", "Output format: table, csv, tsv, or json.")
+	cmd.Flags().StringVar(&format, "format", "tsv", "Output format: tsv, csv, json, or table. Default: tsv.")
 	return cmd
 }
 
@@ -363,7 +363,7 @@ func addQueryFlags(cmd *cobra.Command, q *model.Query, format *string, queryFile
 	cmd.Flags().IntVar(&q.Limit, "limit", 0, "Maximum number of rows to return.")
 	cmd.Flags().StringVar(&q.SampleStrategy, "sample-strategy", "all", "Sampling strategy when using --limit: all or even.")
 	cmd.Flags().Int64Var(&q.Seed, "seed", 1, "Deterministic seed used for sampling.")
-	cmd.Flags().StringVar(format, "format", "table", "Output format: table, csv, tsv, or json.")
+	cmd.Flags().StringVar(format, "format", "tsv", "Output format: tsv, csv, json, or table. Default: tsv.")
 	cmd.Flags().StringVar(queryFile, "query-file", "", "Load query filters from a TOML file.")
 	cmd.Flags().BoolVar(emitQuery, "emit-query-toml", false, "Print the effective query as TOML and exit.")
 	cmd.Flags().StringVar(saveQuery, "save-query", "", "Write the effective query TOML to a file.")
@@ -387,7 +387,10 @@ func addQueryFlags(cmd *cobra.Command, q *model.Query, format *string, queryFile
 }
 
 func localStore(opts *rootOptions) store.LocalStore {
-	return store.LocalStore{Layout: cache.NewLayout(opts.cacheDir)}
+	return store.LocalStore{
+		Layout: cache.NewLayout(opts.cacheDir),
+		Logf:   stderrLogger(os.Stderr),
+	}
 }
 
 func catalogSource(stderr io.Writer, opts *rootOptions, includeMetadata, includeAMR bool, genera []string) source.CatalogSource {

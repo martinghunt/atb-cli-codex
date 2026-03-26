@@ -52,27 +52,30 @@ type lookupRow struct {
 	AssemblyStatsN90n       sql.NullInt64
 }
 
-func ensureLookupIndex(layout cache.Layout) error {
+func ensureLookupIndex(layout cache.Layout, logf func(string, ...any)) error {
 	if err := layout.Ensure(); err != nil {
 		return err
 	}
-	needsBuild, err := lookupIndexNeedsBuild(layout)
+	needsBuild, reason, err := lookupIndexNeedsBuild(layout)
 	if err != nil {
 		return err
 	}
 	if !needsBuild {
 		return nil
 	}
+	if logf != nil {
+		logf("building local SQLite query cache from cached parquet files (%s); this can take a while the first time", reason)
+	}
 	return rebuildLookupIndex(layout)
 }
 
-func lookupIndexNeedsBuild(layout cache.Layout) (bool, error) {
+func lookupIndexNeedsBuild(layout cache.Layout) (bool, string, error) {
 	dbInfo, err := os.Stat(layout.LookupDB)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return true, nil
+			return true, "no cached index yet", nil
 		}
-		return false, fmt.Errorf("stat lookup index: %w", err)
+		return false, "", fmt.Errorf("stat lookup index: %w", err)
 	}
 	for _, path := range lookupIndexSourcePaths(layout) {
 		info, err := os.Stat(path)
@@ -80,13 +83,13 @@ func lookupIndexNeedsBuild(layout cache.Layout) (bool, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return false, fmt.Errorf("stat lookup source %s: %w", path, err)
+			return false, "", fmt.Errorf("stat lookup source %s: %w", path, err)
 		}
 		if info.ModTime().After(dbInfo.ModTime()) {
-			return true, nil
+			return true, fmt.Sprintf("%s changed", filepath.Base(path)), nil
 		}
 	}
-	return false, nil
+	return false, "", nil
 }
 
 func lookupIndexSourcePaths(layout cache.Layout) []string {
@@ -237,7 +240,7 @@ func readAssemblyStatsBySample(layout cache.Layout) (map[string]assemblyStatsRow
 }
 
 func lookupRowByID(ctx context.Context, layout cache.Layout, id string) (*lookupRow, error) {
-	if err := ensureLookupIndex(layout); err != nil {
+	if err := ensureLookupIndex(layout, nil); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", layout.LookupDB)
@@ -297,7 +300,7 @@ func queryLookupRows(ctx context.Context, layout cache.Layout, q model.Query) ([
 	if q.SequenceType != nil {
 		return nil, ErrQueryUnsupported
 	}
-	if err := ensureLookupIndex(layout); err != nil {
+	if err := ensureLookupIndex(layout, nil); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", layout.LookupDB)

@@ -32,9 +32,16 @@ type Store interface {
 
 type LocalStore struct {
 	Layout cache.Layout
+	Logf   func(string, ...any)
 }
 
 func (s LocalStore) QueryRecords(ctx context.Context, q model.Query) ([]model.Record, error) {
+	if err := ensureLookupIndex(s.Layout, s.Logf); err != nil {
+		if os.IsNotExist(err) {
+			return nil, ErrQueryUnsupported
+		}
+		return nil, wrapCacheErr("metadata query cache", err)
+	}
 	rows, err := queryLookupRows(ctx, s.Layout, q)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -83,6 +90,7 @@ func (s LocalStore) RecordByID(ctx context.Context, id string) (model.Record, er
 		}
 		return model.Record{}, fmt.Errorf("no record found for %q", id)
 	}
+	_ = ensureLookupIndex(s.Layout, s.Logf)
 	if row, err := lookupRowByID(ctx, s.Layout, id); err == nil {
 		return row.toRecord(), nil
 	}
@@ -106,6 +114,7 @@ func (s LocalStore) RecordByID(ctx context.Context, id string) (model.Record, er
 }
 
 func (s LocalStore) InfoRow(ctx context.Context, id string, includeENA bool) (map[string]any, error) {
+	_ = ensureLookupIndex(s.Layout, s.Logf)
 	if row, err := lookupRowByID(ctx, s.Layout, id); err == nil {
 		info := row.toInfoRow()
 		if includeENA {

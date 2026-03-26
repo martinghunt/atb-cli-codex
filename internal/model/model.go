@@ -51,8 +51,27 @@ type Query struct {
 }
 
 type Stats struct {
-	Total      int            `json:"total"`
-	PerSpecies map[string]int `json:"per_species"`
+	Total                   int             `json:"total"`
+	PerSpecies              map[string]int  `json:"per_species"`
+	PerGenus                map[string]int  `json:"per_genus"`
+	HQ                      int             `json:"hq"`
+	NonHQ                   int             `json:"non_hq"`
+	CheckM2CompletenessGE90 int             `json:"checkm2_completeness_ge_90"`
+	CheckM2ContaminationLE5 int             `json:"checkm2_contamination_le_5"`
+	TopSpecies              []NamedCount    `json:"top_species"`
+	FieldCoverage           []FieldCoverage `json:"field_coverage"`
+}
+
+type NamedCount struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type FieldCoverage struct {
+	Field      string `json:"field"`
+	Present    int    `json:"present"`
+	Total      int    `json:"total"`
+	Percentage int    `json:"percentage"`
 }
 
 type OutputFormat string

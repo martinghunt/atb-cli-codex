@@ -8,7 +8,6 @@ import (
 	"io"
 	"sort"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/martin/atb-cli-codex/internal/model"
 )
@@ -29,24 +28,76 @@ func WriteRows(w io.Writer, format model.OutputFormat, rows []map[string]any) er
 }
 
 func WriteStats(w io.Writer, format model.OutputFormat, stats model.Stats) error {
-	rows := []map[string]any{}
-	keys := make([]string, 0, len(stats.PerSpecies))
-	for species := range stats.PerSpecies {
-		keys = append(keys, species)
-	}
-	sort.Strings(keys)
-	for _, species := range keys {
-		rows = append(rows, map[string]any{"species": species, "count": stats.PerSpecies[species]})
-	}
 	if format == model.FormatJSON {
 		enc := json.NewEncoder(w)
 		enc.SetIndent("", "  ")
 		return enc.Encode(stats)
 	}
-	if _, err := fmt.Fprintf(w, "total_genomes\t%d\n", stats.Total); err != nil {
+	if _, err := fmt.Fprintf(w, "metric\tvalue\n"); err != nil {
 		return err
 	}
-	return writeTable(w, rows)
+	summary := []struct {
+		name  string
+		value any
+	}{
+		{"total_genomes", stats.Total},
+		{"hq_genomes", stats.HQ},
+		{"non_hq_genomes", stats.NonHQ},
+		{"checkm2_completeness_ge_90", stats.CheckM2CompletenessGE90},
+		{"checkm2_contamination_le_5", stats.CheckM2ContaminationLE5},
+	}
+	for _, row := range summary {
+		if _, err := fmt.Fprintf(w, "%s\t%v\n", row.name, row.value); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "section\tname\tcount"); err != nil {
+		return err
+	}
+	for _, entry := range namedCountsRows("species", stats.PerSpecies) {
+		if _, err := fmt.Fprintf(w, "species\t%s\t%d\n", entry.Name, entry.Count); err != nil {
+			return err
+		}
+	}
+	for _, entry := range namedCountsRows("genus", stats.PerGenus) {
+		if _, err := fmt.Fprintf(w, "genus\t%s\t%d\n", entry.Name, entry.Count); err != nil {
+			return err
+		}
+	}
+	for _, entry := range stats.TopSpecies {
+		if _, err := fmt.Fprintf(w, "top_species\t%s\t%d\n", entry.Name, entry.Count); err != nil {
+			return err
+		}
+	}
+	if _, err := fmt.Fprintln(w); err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(w, "field\tpresent\ttotal\tpercentage"); err != nil {
+		return err
+	}
+	for _, field := range stats.FieldCoverage {
+		if _, err := fmt.Fprintf(w, "%s\t%d\t%d\t%d\n", field.Field, field.Present, field.Total, field.Percentage); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func namedCountsRows(_ string, items map[string]int) []model.NamedCount {
+	out := make([]model.NamedCount, 0, len(items))
+	for name, count := range items {
+		out = append(out, model.NamedCount{Name: name, Count: count})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name == out[j].Name {
+			return out[i].Count < out[j].Count
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
 }
 
 func writeDelimited(w io.Writer, format model.OutputFormat, rows []map[string]any) error {
@@ -73,12 +124,11 @@ func writeDelimited(w io.Writer, format model.OutputFormat, rows []map[string]an
 
 func writeTable(w io.Writer, rows []map[string]any) error {
 	headers := headers(rows)
-	tw := tabwriter.NewWriter(w, 0, 8, 2, ' ', 0)
 	if len(headers) == 0 {
 		_, err := fmt.Fprintln(w, "No rows.")
 		return err
 	}
-	if _, err := fmt.Fprintln(tw, strings.Join(headers, "\t")); err != nil {
+	if _, err := fmt.Fprintln(w, strings.Join(headers, "\t")); err != nil {
 		return err
 	}
 	for _, row := range rows {
@@ -86,11 +136,11 @@ func writeTable(w io.Writer, rows []map[string]any) error {
 		for _, header := range headers {
 			values = append(values, fmt.Sprint(row[header]))
 		}
-		if _, err := fmt.Fprintln(tw, strings.Join(values, "\t")); err != nil {
+		if _, err := fmt.Fprintln(w, strings.Join(values, "\t")); err != nil {
 			return err
 		}
 	}
-	return tw.Flush()
+	return nil
 }
 
 func headers(rows []map[string]any) []string {

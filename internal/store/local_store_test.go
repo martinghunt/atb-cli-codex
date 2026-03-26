@@ -3,6 +3,7 @@ package store
 import (
 	"compress/gzip"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -218,6 +219,30 @@ func TestLocalStoreQueryRecordsUsesSQLiteQueryCache(t *testing.T) {
 	}
 	if _, err := os.Stat(layout.LookupDB); err != nil {
 		t.Fatalf("expected lookup DB to be created, got %v", err)
+	}
+}
+
+func TestEnsureLookupIndexLogsWhenBuildingFirstCache(t *testing.T) {
+	layout := cache.NewLayout(t.TempDir())
+	if err := layout.Ensure(); err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	writeParquet(t, filepath.Join(layout.Metadata, "assembly.parquet"), []assemblyInfoRow{
+		{SampleAccession: "S1", RunAccession: "R1", ScientificName: "Escherichia coli"},
+	})
+
+	var messages []string
+	err := ensureLookupIndex(layout, func(format string, args ...any) {
+		messages = append(messages, fmt.Sprintf(format, args...))
+	})
+	if err != nil {
+		t.Fatalf("ensureLookupIndex: %v", err)
+	}
+	if len(messages) == 0 {
+		t.Fatalf("expected a build log message")
+	}
+	if !strings.Contains(messages[0], "building local SQLite query cache") {
+		t.Fatalf("unexpected log message: %q", messages[0])
 	}
 }
 

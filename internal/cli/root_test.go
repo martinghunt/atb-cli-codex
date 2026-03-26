@@ -73,6 +73,33 @@ func TestQueryAndDownloadCommands(t *testing.T) {
 	}
 }
 
+func TestQueryDefaultsToTSVOutput(t *testing.T) {
+	cacheDir := t.TempDir()
+	layout := cache.NewLayout(cacheDir)
+	if err := layout.Ensure(); err != nil {
+		t.Fatalf("Ensure layout: %v", err)
+	}
+	writeJSON(t, filepath.Join(layout.Metadata, "records.json"), []model.Record{
+		{SampleID: "S1", GenomeID: "G1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true},
+	})
+
+	cmd := NewRootCommand(context.Background())
+	buf := &bytes.Buffer{}
+	cmd.SetOut(buf)
+	cmd.SetErr(buf)
+	cmd.SetArgs([]string{"--cache-dir", cacheDir, "query", "--species", "Escherichia coli"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("query execute: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "genome_id\t") {
+		t.Fatalf("expected tab-delimited header, got %q", out)
+	}
+	if !strings.Contains(out, "G1\t") {
+		t.Fatalf("expected tab-delimited row, got %q", out)
+	}
+}
+
 func TestQueryActionableMissingCacheError(t *testing.T) {
 	cmd := NewRootCommand(context.Background())
 	buf := &bytes.Buffer{}

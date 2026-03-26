@@ -164,4 +164,33 @@ func TestServiceUsesBroadQueryBackendWhenAvailable(t *testing.T) {
 	}
 }
 
+func TestServiceStatsIncludesExtendedSummaries(t *testing.T) {
+	store := &fakeStore{records: []model.Record{
+		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true, GenomeID: "R1", CheckM2Completeness: 99, CheckM2Contamination: 1},
+		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", HQ: false, CheckM2Completeness: 85, CheckM2Contamination: 6},
+		{SampleID: "S3", Species: "Salmonella enterica", Genus: "Salmonella", HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.2, Country: "UK"},
+	}}
+	svc := Service{Store: store}
+
+	stats, err := svc.Stats(context.Background(), model.Query{})
+	if err != nil {
+		t.Fatalf("Stats returned error: %v", err)
+	}
+	if stats.Total != 3 || stats.HQ != 2 || stats.NonHQ != 1 {
+		t.Fatalf("unexpected headline stats: %#v", stats)
+	}
+	if stats.PerSpecies["Escherichia coli"] != 2 || stats.PerGenus["Salmonella"] != 1 {
+		t.Fatalf("unexpected grouped stats: %#v", stats)
+	}
+	if stats.CheckM2CompletenessGE90 != 2 || stats.CheckM2ContaminationLE5 != 2 {
+		t.Fatalf("unexpected CheckM2 summaries: %#v", stats)
+	}
+	if len(stats.TopSpecies) == 0 || stats.TopSpecies[0].Name != "Escherichia coli" || stats.TopSpecies[0].Count != 2 {
+		t.Fatalf("unexpected top species: %#v", stats.TopSpecies)
+	}
+	if len(stats.FieldCoverage) == 0 {
+		t.Fatalf("expected field coverage stats")
+	}
+}
+
 func floatPtr(v float64) *float64 { return &v }
