@@ -91,6 +91,11 @@ custom test or mirror catalog.`,
 			if err != nil {
 				return err
 			}
+			if fetchMetadata {
+				if err := store.BuildQueryCache(cache.NewLayout(opts.cacheDir), stderrLogger(cmd.ErrOrStderr())); err != nil {
+					return err
+				}
+			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Downloaded: %s\n", commaOrNone(result.Downloaded))
 			fmt.Fprintf(cmd.OutOrStdout(), "Reused cached: %s\n", commaOrNone(result.Skipped))
 			fmt.Fprintf(cmd.OutOrStdout(), "Metadata version: %s\nAMR version: %s\n", result.State.MetadataVersion, result.State.AMRVersion)
@@ -129,6 +134,11 @@ func newUpdateCommand(ctx context.Context, opts *rootOptions) *cobra.Command {
 			result, err := syncer.Fetch(ctx, updateMetadata, updateAMR, genera, true)
 			if err != nil {
 				return err
+			}
+			if updateMetadata {
+				if err := store.BuildQueryCache(cache.NewLayout(opts.cacheDir), stderrLogger(cmd.ErrOrStderr())); err != nil {
+					return err
+				}
 			}
 			data, _ := json.MarshalIndent(result.State, "", "  ")
 			fmt.Fprintln(cmd.OutOrStdout(), string(data))

@@ -246,6 +246,16 @@ func TestEnsureLookupIndexLogsWhenBuildingFirstCache(t *testing.T) {
 	}
 }
 
+func TestBuildQueryCacheNoOpWhenAssemblyParquetMissing(t *testing.T) {
+	layout := cache.NewLayout(t.TempDir())
+	if err := layout.Ensure(); err != nil {
+		t.Fatalf("Ensure: %v", err)
+	}
+	if err := BuildQueryCache(layout, nil); err != nil {
+		t.Fatalf("BuildQueryCache should ignore missing parquet inputs, got %v", err)
+	}
+}
+
 func writeParquet[T any](t *testing.T, path string, rows []T) {
 	t.Helper()
 	f, err := os.Create(path)
