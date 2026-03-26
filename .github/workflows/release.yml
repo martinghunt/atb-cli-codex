@@ -1,0 +1,50 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Build all binaries
+        run: bash ./build.sh --all
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+          cp dist/darwin-amd64/atb release-assets/atb-darwin-amd64
+          cp dist/darwin-arm64/atb release-assets/atb-darwin-arm64
+          cp dist/linux-amd64/atb release-assets/atb-linux-amd64
+          cp dist/linux-arm64/atb release-assets/atb-linux-arm64
+          cp dist/windows-amd64/atb.exe release-assets/atb-windows-amd64.exe
+          cp dist/windows-arm64/atb.exe release-assets/atb-windows-arm64.exe
+
+      - name: Create GitHub release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/atb-darwin-amd64
+            release-assets/atb-darwin-arm64
+            release-assets/atb-linux-amd64
+            release-assets/atb-linux-arm64
+            release-assets/atb-windows-amd64.exe
+            release-assets/atb-windows-arm64.exe
+          generate_release_notes: true
