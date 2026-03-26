@@ -5,6 +5,7 @@ type Record struct {
 	GenomeID              string   `json:"genome_id" toml:"genome_id"`
 	Species               string   `json:"species" toml:"species"`
 	Genus                 string   `json:"genus" toml:"genus"`
+	ASMFASTAOnOSF         int64    `json:"asm_fasta_on_osf" toml:"asm_fasta_on_osf"`
 	SequenceType          int      `json:"sequence_type" toml:"sequence_type"`
 	MLSTScheme            string   `json:"mlst_scheme" toml:"mlst_scheme"`
 	HQ                    bool     `json:"hq" toml:"hq"`
@@ -40,6 +41,7 @@ type Query struct {
 	Species                 string   `toml:"species" json:"species"`
 	SampleID                string   `toml:"sample_id" json:"sample_id"`
 	GenomeID                string   `toml:"genome_id" json:"genome_id"`
+	ASMFASTAOnOSF           string   `toml:"asm_fasta_on_osf" json:"asm_fasta_on_osf"`
 	SequenceType            *int     `toml:"sequence_type" json:"sequence_type"`
 	HQOnly                  bool     `toml:"hq_only" json:"hq_only"`
 	CheckM2Min              *float64 `toml:"checkm2_min" json:"checkm2_min"`

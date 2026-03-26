@@ -113,6 +113,7 @@ func fieldCoverage(records []model.Record) []model.FieldCoverage {
 	fields := []fieldCheck{
 		{name: "species", present: func(r model.Record) bool { return strings.TrimSpace(r.Species) != "" }},
 		{name: "genus", present: func(r model.Record) bool { return strings.TrimSpace(r.Genus) != "" }},
+		{name: "asm_fasta_on_osf", present: func(r model.Record) bool { return r.ASMFASTAOnOSF == 0 || r.ASMFASTAOnOSF == 1 }},
 		{name: "genome_id", present: func(r model.Record) bool { return strings.TrimSpace(r.GenomeID) != "" }},
 		{name: "checkm2_completeness", present: func(r model.Record) bool { return r.CheckM2Completeness > 0 }},
 		{name: "checkm2_contamination", present: func(r model.Record) bool { return r.CheckM2Contamination > 0 }},
@@ -146,6 +147,9 @@ func fieldCoverage(records []model.Record) []model.FieldCoverage {
 func Validate(q model.Query) error {
 	if q.Limit < 0 {
 		return fmt.Errorf("--limit must be zero or greater")
+	}
+	if _, err := normalizedASMFASTAOnOSFFilter(q.ASMFASTAOnOSF); err != nil {
+		return err
 	}
 	if q.SampleStrategy != "" && q.SampleStrategy != "all" && q.SampleStrategy != "even" {
 		return fmt.Errorf("unsupported --sample-strategy %q; valid values are all or even", q.SampleStrategy)
@@ -206,6 +210,7 @@ func (s Service) filterRecords(ctx context.Context, q model.Query) ([]model.Reco
 }
 
 func applyRecordFilters(records []model.Record, q model.Query) []model.Record {
+	asmFilter, _ := normalizedASMFASTAOnOSFFilter(q.ASMFASTAOnOSF)
 	filtered := make([]model.Record, 0, len(records))
 	for _, rec := range records {
 		if q.Species != "" && !strings.EqualFold(rec.Species, q.Species) {
@@ -215,6 +220,9 @@ func applyRecordFilters(records []model.Record, q model.Query) []model.Record {
 			continue
 		}
 		if q.GenomeID != "" && rec.GenomeID != q.GenomeID {
+			continue
+		}
+		if asmFilter != "any" && rec.ASMFASTAOnOSF != expectedASMValue(asmFilter) {
 			continue
 		}
 		if q.SequenceType != nil && rec.SequenceType != *q.SequenceType {
@@ -334,6 +342,7 @@ func recordToRow(record model.Record) map[string]any {
 		"genome_id":               record.GenomeID,
 		"species":                 record.Species,
 		"genus":                   record.Genus,
+		"asm_fasta_on_osf":        record.ASMFASTAOnOSF,
 		"sequence_type":           record.SequenceType,
 		"mlst_scheme":             record.MLSTScheme,
 		"hq":                      record.HQ,
@@ -345,6 +354,26 @@ func recordToRow(record model.Record) map[string]any {
 		"metadata_version":        record.MetadataVersion,
 		"assembly_source_version": record.AssemblySourceVersion,
 	}
+}
+
+func normalizedASMFASTAOnOSFFilter(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "1", "true", "yes":
+		return "1", nil
+	case "0", "false", "no":
+		return "0", nil
+	case "any", "*", "all":
+		return "any", nil
+	default:
+		return "", fmt.Errorf("unsupported --asm-fasta-on-osf %q; valid values are 1, 0, or any", value)
+	}
+}
+
+func expectedASMValue(value string) int64 {
+	if value == "0" {
+		return 0
+	}
+	return 1
 }
 
 func recordsToRows(records []model.Record) []map[string]any {

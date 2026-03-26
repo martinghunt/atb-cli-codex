@@ -367,8 +367,13 @@ func queryLookupRows(ctx context.Context, layout cache.Layout, q model.Query) ([
 }
 
 func lookupQueryWhere(q model.Query) (string, []any) {
+	asmFilter := normalizeStoreASMFilter(q.ASMFASTAOnOSF)
 	var clauses []string
 	var args []any
+	if asmFilter != "any" {
+		clauses = append(clauses, "asm_fasta_on_osf = ?")
+		args = append(args, expectedStoreASMValue(asmFilter))
+	}
 	if q.Species != "" {
 		clauses = append(clauses, "lower(species) = lower(?)")
 		args = append(args, q.Species)
@@ -390,12 +395,31 @@ func lookupQueryWhere(q model.Query) (string, []any) {
 	return " WHERE " + strings.Join(clauses, " AND "), args
 }
 
+func normalizeStoreASMFilter(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "1", "true", "yes":
+		return "1"
+	case "0", "false", "no":
+		return "0"
+	default:
+		return "any"
+	}
+}
+
+func expectedStoreASMValue(value string) int64 {
+	if value == "0" {
+		return 0
+	}
+	return 1
+}
+
 func (r lookupRow) toRecord() model.Record {
 	record := model.Record{
 		SampleID:        r.SampleID,
 		GenomeID:        firstNonEmpty(r.RunAccession.String, r.AssemblyAccession.String),
 		Species:         r.Species.String,
 		Genus:           genusFromSpecies(r.Species.String),
+		ASMFASTAOnOSF:   r.ASMFASTAOnOSF.Int64,
 		HQ:              r.HQ,
 		MetadataVersion: r.MetadataVersion.String,
 	}

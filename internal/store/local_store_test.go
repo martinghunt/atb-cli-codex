@@ -194,9 +194,9 @@ func TestLocalStoreQueryRecordsUsesSQLiteQueryCache(t *testing.T) {
 		t.Fatalf("Ensure: %v", err)
 	}
 	writeParquet(t, filepath.Join(layout.Metadata, "assembly.parquet"), []assemblyInfoRow{
-		{SampleAccession: "S1", RunAccession: "R1", ScientificName: "Escherichia coli", HQFilter: "pass"},
+		{SampleAccession: "S1", RunAccession: "R1", ScientificName: "Escherichia coli", ASMFASTAOnOSF: 1, HQFilter: "pass"},
 		{SampleAccession: "S2", RunAccession: "R2", ScientificName: "Escherichia coli"},
-		{SampleAccession: "S3", RunAccession: "R3", ScientificName: "Salmonella enterica"},
+		{SampleAccession: "S3", RunAccession: "R3", ScientificName: "Salmonella enterica", ASMFASTAOnOSF: 1},
 	})
 	writeParquet(t, filepath.Join(layout.Metadata, "checkm2.parquet"), []checkFixtureRow{
 		{SampleAccession: "S1", Completeness: 99, Contamination: 1},

@@ -356,6 +356,7 @@ func addQueryFlags(cmd *cobra.Command, q *model.Query, format *string, queryFile
 	cmd.Flags().StringVar(&q.Species, "species", "", "Exact species name filter, for example 'Escherichia coli'.")
 	cmd.Flags().StringVar(&q.SampleID, "sample-id", "", "Filter to one sample ID.")
 	cmd.Flags().StringVar(&q.GenomeID, "genome-id", "", "Filter to one genome ID.")
+	cmd.Flags().StringVar(&q.ASMFASTAOnOSF, "asm-fasta-on-osf", "", "Filter on asm_fasta_on_osf: 1, 0, or any. Default: 1.")
 	cmd.Flags().IntVar(&sequenceType, "sequence-type", 0, "Filter by MLST sequence type.")
 	cmd.Flags().BoolVar(&q.HQOnly, "hq-only", false, "Restrict to high-quality genomes.")
 	cmd.Flags().Float64Var(&checkM2Min, "checkm2-min", 0, "Minimum CheckM2 completeness.")
@@ -372,6 +373,9 @@ func addQueryFlags(cmd *cobra.Command, q *model.Query, format *string, queryFile
 	})
 	_ = cmd.RegisterFlagCompletionFunc("format", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return []string{"table", "csv", "tsv", "json"}, cobra.ShellCompDirectiveNoFileComp
+	})
+	_ = cmd.RegisterFlagCompletionFunc("asm-fasta-on-osf", func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
+		return []string{"1", "0", "any"}, cobra.ShellCompDirectiveNoFileComp
 	})
 	cmd.PreRun = func(cmd *cobra.Command, _ []string) {
 		if cmd.Flags().Changed("sequence-type") {
@@ -437,6 +441,9 @@ func mergeQuery(overrides, loaded model.Query) model.Query {
 	}
 	if overrides.GenomeID == "" {
 		overrides.GenomeID = loaded.GenomeID
+	}
+	if overrides.ASMFASTAOnOSF == "" {
+		overrides.ASMFASTAOnOSF = loaded.ASMFASTAOnOSF
 	}
 	if overrides.SequenceType == nil {
 		overrides.SequenceType = loaded.SequenceType

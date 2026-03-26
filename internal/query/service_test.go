@@ -54,12 +54,12 @@ func (f *fakeStore) QueryRecords(context.Context, model.Query) ([]model.Record, 
 func TestServiceFiltersAndSampling(t *testing.T) {
 	st := 131
 	store := &fakeStore{records: []model.Record{
-		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", SequenceType: 131, HQ: true, CheckM2Completeness: 99, CheckM2Contamination: 1},
-		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", SequenceType: 131, HQ: false, CheckM2Completeness: 90, CheckM2Contamination: 6},
-		{SampleID: "S3", Species: "Escherichia coli", Genus: "Escherichia", SequenceType: 69, HQ: true, CheckM2Completeness: 98, CheckM2Contamination: 0.8},
-		{SampleID: "S4", Species: "Salmonella enterica", Genus: "Salmonella", SequenceType: 11, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.2},
-		{SampleID: "S5", Species: "Salmonella enterica", Genus: "Salmonella", SequenceType: 13, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.3},
-		{SampleID: "S6", Species: "Salmonella enterica", Genus: "Salmonella", SequenceType: 13, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.4},
+		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, SequenceType: 131, HQ: true, CheckM2Completeness: 99, CheckM2Contamination: 1},
+		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, SequenceType: 131, HQ: false, CheckM2Completeness: 90, CheckM2Contamination: 6},
+		{SampleID: "S3", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, SequenceType: 69, HQ: true, CheckM2Completeness: 98, CheckM2Contamination: 0.8},
+		{SampleID: "S4", Species: "Salmonella enterica", Genus: "Salmonella", ASMFASTAOnOSF: 1, SequenceType: 11, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.2},
+		{SampleID: "S5", Species: "Salmonella enterica", Genus: "Salmonella", ASMFASTAOnOSF: 1, SequenceType: 13, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.3},
+		{SampleID: "S6", Species: "Salmonella enterica", Genus: "Salmonella", ASMFASTAOnOSF: 1, SequenceType: 13, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.4},
 	}}
 	svc := Service{Store: store}
 
@@ -96,8 +96,8 @@ func TestServiceFiltersAndSampling(t *testing.T) {
 func TestServiceAMRResolvesGenusPartition(t *testing.T) {
 	svc := Service{Store: &fakeStore{
 		records: []model.Record{
-			{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true},
-			{SampleID: "S2", Species: "Salmonella enterica", Genus: "Salmonella", HQ: true},
+			{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true},
+			{SampleID: "S2", Species: "Salmonella enterica", Genus: "Salmonella", ASMFASTAOnOSF: 1, HQ: true},
 		},
 		amrByGenus: map[string][]model.AMRHit{
 			"escherichia": {
@@ -121,7 +121,7 @@ func TestServiceAMRResolvesGenusPartition(t *testing.T) {
 func TestServiceUsesTargetedLookupForExactSampleQuery(t *testing.T) {
 	store := &fakeStore{
 		recordByID: map[string]model.Record{
-			"S1": {SampleID: "S1", GenomeID: "R1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true},
+			"S1": {SampleID: "S1", GenomeID: "R1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true},
 		},
 	}
 	svc := Service{Store: store}
@@ -144,7 +144,7 @@ func TestServiceUsesTargetedLookupForExactSampleQuery(t *testing.T) {
 func TestServiceUsesBroadQueryBackendWhenAvailable(t *testing.T) {
 	store := &fakeStore{
 		queryRecords: []model.Record{
-			{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true},
+			{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true},
 		},
 	}
 	svc := Service{Store: store}
@@ -166,9 +166,9 @@ func TestServiceUsesBroadQueryBackendWhenAvailable(t *testing.T) {
 
 func TestServiceStatsIncludesExtendedSummaries(t *testing.T) {
 	store := &fakeStore{records: []model.Record{
-		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true, GenomeID: "R1", CheckM2Completeness: 99, CheckM2Contamination: 1},
-		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", HQ: false, CheckM2Completeness: 85, CheckM2Contamination: 6},
-		{SampleID: "S3", Species: "Salmonella enterica", Genus: "Salmonella", HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.2, Country: "UK"},
+		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true, GenomeID: "R1", CheckM2Completeness: 99, CheckM2Contamination: 1},
+		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: false, CheckM2Completeness: 85, CheckM2Contamination: 6},
+		{SampleID: "S3", Species: "Salmonella enterica", Genus: "Salmonella", ASMFASTAOnOSF: 1, HQ: true, CheckM2Completeness: 97, CheckM2Contamination: 0.2, Country: "UK"},
 	}}
 	svc := Service{Store: store}
 
@@ -190,6 +190,30 @@ func TestServiceStatsIncludesExtendedSummaries(t *testing.T) {
 	}
 	if len(stats.FieldCoverage) == 0 {
 		t.Fatalf("expected field coverage stats")
+	}
+}
+
+func TestServiceDefaultsToASMFASTAOnOSFEqualsOne(t *testing.T) {
+	store := &fakeStore{records: []model.Record{
+		{SampleID: "S1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true},
+		{SampleID: "S2", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 0, HQ: true},
+	}}
+	svc := Service{Store: store}
+
+	rows, err := svc.Run(context.Background(), model.Query{Species: "Escherichia coli"})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if len(rows) != 1 || rows[0]["sample_id"] != "S1" {
+		t.Fatalf("expected default asm_fasta_on_osf=1 filtering, got %#v", rows)
+	}
+
+	rows, err = svc.Run(context.Background(), model.Query{Species: "Escherichia coli", ASMFASTAOnOSF: "any"})
+	if err != nil {
+		t.Fatalf("Run with any returned error: %v", err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("expected both rows with --asm-fasta-on-osf any, got %#v", rows)
 	}
 }
 

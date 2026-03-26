@@ -42,7 +42,7 @@ func TestQueryAndDownloadCommands(t *testing.T) {
 		t.Fatalf("Ensure layout: %v", err)
 	}
 	writeJSON(t, filepath.Join(layout.Metadata, "records.json"), []model.Record{
-		{SampleID: "S1", GenomeID: "G1", Species: "Escherichia coli", Genus: "Escherichia", SequenceType: 131, HQ: true},
+		{SampleID: "S1", GenomeID: "G1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, SequenceType: 131, HQ: true},
 	})
 	writeJSON(t, filepath.Join(layout.Manifests, "assemblies.json"), []model.AssemblyEntry{
 		{SampleID: "S1", AWSURL: "https://example.org/S1.fa.gz", TarballName: "bundle.tar.gz", TarballURL: "https://example.org/bundle.tar.gz", FileInTarball: "bundle/S1.fa.gz"},
@@ -80,7 +80,7 @@ func TestQueryDefaultsToTSVOutput(t *testing.T) {
 		t.Fatalf("Ensure layout: %v", err)
 	}
 	writeJSON(t, filepath.Join(layout.Metadata, "records.json"), []model.Record{
-		{SampleID: "S1", GenomeID: "G1", Species: "Escherichia coli", Genus: "Escherichia", HQ: true},
+		{SampleID: "S1", GenomeID: "G1", Species: "Escherichia coli", Genus: "Escherichia", ASMFASTAOnOSF: 1, HQ: true},
 	})
 
 	cmd := NewRootCommand(context.Background())

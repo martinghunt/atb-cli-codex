@@ -289,6 +289,16 @@ func (s LocalStore) recordsFromParquet() ([]model.Record, error) {
 			checkm2BySample[row.SampleAccession] = row
 		}
 	}
+	assemblyBySample := map[string]assemblyInfoRow{}
+	if assemblyPath, err := firstExisting(filepath.Join(s.Layout.Metadata, "assembly.parquet")); err == nil {
+		assemblyRows, err := parquet.ReadFile[assemblyInfoRow](assemblyPath)
+		if err != nil {
+			return nil, fmt.Errorf("read assembly parquet: %w", err)
+		}
+		for _, row := range assemblyRows {
+			assemblyBySample[row.SampleAccession] = row
+		}
+	}
 
 	records := make([]model.Record, 0, len(enaRows))
 	for _, row := range enaRows {
@@ -299,6 +309,9 @@ func (s LocalStore) recordsFromParquet() ([]model.Record, error) {
 			Genus:           genusFromSpecies(row.ScientificName),
 			Country:         row.Country,
 			MetadataVersion: filepath.Base(enaPath),
+		}
+		if assembly, ok := assemblyBySample[row.SampleAccession]; ok {
+			record.ASMFASTAOnOSF = assembly.ASMFASTAOnOSF
 		}
 		if check, ok := checkm2BySample[row.SampleAccession]; ok {
 			record.CheckM2Completeness = check.Completeness
@@ -344,6 +357,7 @@ func (s LocalStore) recordFromAssembly(id string) (model.Record, error) {
 		GenomeID:        firstNonEmpty(fmt.Sprint(row["run_accession"]), fmt.Sprint(row["assembly_accession"])),
 		Species:         fmt.Sprint(row["species"]),
 		Genus:           genusFromSpecies(fmt.Sprint(row["species"])),
+		ASMFASTAOnOSF:   toInt64(row["asm_fasta_on_osf"]),
 		HQ:              row["hq"] == true,
 		MetadataVersion: fmt.Sprint(row["metadata_version"]),
 	}
@@ -525,6 +539,19 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func toInt64(value any) int64 {
+	switch v := value.(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	default:
+		return 0
+	}
 }
 
 func (s LocalStore) assembliesFromTSV() ([]model.AssemblyEntry, error) {
